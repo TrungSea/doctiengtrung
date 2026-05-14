@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Đọc tiếng Trung chạy nền</title>
+
+<style>
+
+body{
+    margin:0;
+    font-family:Arial;
+    background:#111827;
+    color:white;
+}
+
+.container{
+    max-width:900px;
+    margin:auto;
+    padding:15px;
+}
+
+h1{
+    text-align:center;
+    margin-bottom:25px;
+    font-size:28px;
+}
+
+.card{
+    background:#1f2937;
+    padding:18px;
+    border-radius:20px;
+    margin-bottom:20px;
+}
+
+input{
+    width:100%;
+    padding:14px;
+    border:none;
+    border-radius:12px;
+    margin-bottom:15px;
+    font-size:16px;
+    box-sizing:border-box;
+}
+
+button{
+    border:none;
+    padding:12px 18px;
+    border-radius:12px;
+    cursor:pointer;
+    font-size:15px;
+}
+
+.add-btn{
+    background:#10b981;
+    color:white;
+    width:100%;
+}
+
+.play{
+    background:#10b981;
+    color:white;
+}
+
+.repeat{
+    background:#f59e0b;
+    color:white;
+}
+
+.stop{
+    background:#ef4444;
+    color:white;
+}
+
+.controls{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.controls button{
+    flex:1;
+    min-width:120px;
+}
+
+#playlist{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:12px;
+}
+
+.word-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    background:#374151;
+    padding:15px;
+    border-radius:15px;
+    gap:10px;
+    flex-wrap:wrap;
+}
+
+.word-item h3{
+    margin:0;
+    font-size:24px;
+}
+
+.word-item p{
+    margin:4px 0;
+    color:#d1d5db;
+}
+
+.word-buttons{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+}
+
+.small-btn{
+    background:#2563eb;
+    color:white;
+    padding:10px 14px;
+}
+
+.delete-btn{
+    background:#ef4444;
+    color:white;
+    padding:10px 14px;
+}
+
+.loading{
+    text-align:center;
+    margin-top:10px;
+    color:#fbbf24;
+}
+
+@media (min-width:700px){
+
+#playlist{
+    grid-template-columns:1fr 1fr;
+}
+
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🎧🎧🎧🎧 </h1>
+
+<div class="card">
+
+<h2>Thêm từ</h2>
+
+<input
+type="text"
+id="vnInput"
+placeholder="Nhập tiếng Việt">
+
+<button
+class="add-btn"
+onclick="addWord()">
+➕ Thêm từ
+</button>
+
+<div
+class="loading"
+id="loading">
+</div>
+
+</div>
+
+<div class="card">
+
+<h2>Playlist</h2>
+
+<div id="playlist"></div>
+
+</div>
+
+<div class="card">
+
+<h2>Điều khiển</h2>
+
+<div class="controls">
+
+<button
+class="play"
+onclick="playAll()">
+▶ Play All
+</button>
+
+<button
+class="repeat"
+onclick="toggleRepeat()">
+🔁 Repeat
+</button>
+
+<button
+class="stop"
+onclick="stopAll()">
+⏹ Stop
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+<script src="https://unpkg.com/pinyin-pro/dist/index.js"></script>
+
+<script>
+
+// ======================
+// LOCAL STORAGE
+// ======================
+
+function saveWords(){
+
+localStorage.setItem(
+"chinese_words",
+JSON.stringify(words)
+);
+
+}
+
+function loadWords(){
+
+const saved =
+localStorage.getItem("chinese_words");
+
+if(saved){
+
+words = JSON.parse(saved);
+
+}
+
+}
+
+// ======================
+// DATA
+// ======================
+
+let words = [
+{
+zh:"服务器",
+py:"fú wù qì",
+vi:"máy chủ"
+},
+{
+zh:"网络",
+py:"wǎng luò",
+vi:"mạng"
+}
+];
+
+loadWords();
+
+let repeatMode = false;
+let isStopped = false;
+let voices = [];
+let currentSpeech = null;
+
+// ======================
+// VOICES
+// ======================
+
+function loadVoices(){
+
+voices = window.speechSynthesis.getVoices();
+
+}
+
+speechSynthesis.onvoiceschanged = loadVoices;
+
+loadVoices();
+
+// ======================
+// WAKE LOCK
+// ======================
+
+async function keepScreenAwake(){
+
+try{
+
+if("wakeLock" in navigator){
+
+await navigator.wakeLock.request("screen");
+
+}
+
+}catch(err){
+
+console.log(err);
+
+}
+
+}
+
+keepScreenAwake();
+
+document.addEventListener("visibilitychange",()=>{
+
+if(document.visibilityState==="visible"){
+
+keepScreenAwake();
+
+}
+
+});
+
+// ======================
+// RENDER
+// ======================
+
+function renderWords(){
+
+const playlist =
+document.getElementById("playlist");
+
+playlist.innerHTML = "";
+
+if(words.length === 0){
+
+playlist.innerHTML = `
+<p style="text-align:center;color:#9ca3af;">
+Chưa có từ nào
+</p>
+`;
+
+return;
+
+}
+
+words.forEach((word,index)=>{
+
+playlist.innerHTML += `
+
+<div class="word-item">
+
+<div style="flex:1; min-width:180px;">
+
+<h3>${word.zh}</h3>
+
+<p>${word.py}</p>
+
+<p>${word.vi}</p>
+
+</div>
+
+<div class="word-buttons">
+
+<button
+class="small-btn"
+onclick="speakChinese('${word.zh}')">
+🇨🇳
+</button>
+
+<button
+class="small-btn"
+onclick="speakVietnamese('${word.vi}')">
+🇻🇳
+</button>
+
+<button
+class="delete-btn"
+onclick="deleteWord(${index})">
+🗑
+</button>
+
+</div>
+
+</div>
+
+`;
+
+});
+
+}
+
+// ======================
+// VOICE HELPERS
+// ======================
+
+function getChineseVoice(){
+
+return voices.find(
+v =>
+v.lang.includes("zh-CN")
+)
+||
+voices.find(
+v =>
+v.lang.includes("zh")
+);
+
+}
+
+function getVietnameseVoice(){
+
+return voices.find(
+v =>
+v.lang.includes("vi")
+);
+
+}
+
+// ======================
+// SPEECH
+// ======================
+
+function stopSpeech(){
+
+window.speechSynthesis.cancel();
+
+currentSpeech = null;
+
+}
+
+function speakChinese(text){
+
+stopSpeech();
+
+const speech =
+new SpeechSynthesisUtterance(text);
+
+speech.lang = "zh-CN";
+
+speech.rate = 0.75;
+
+speech.pitch = 1;
+
+speech.volume = 1;
+
+const voice = getChineseVoice();
+
+if(voice){
+
+speech.voice = voice;
+
+}
+
+currentSpeech = speech;
+
+window.speechSynthesis.speak(speech);
+
+}
+
+function speakVietnamese(text){
+
+stopSpeech();
+
+const speech =
+new SpeechSynthesisUtterance(text);
+
+speech.lang = "vi-VN";
+
+speech.rate = 0.9;
+
+speech.pitch = 1;
+
+speech.volume = 1;
+
+const voice = getVietnameseVoice();
+
+if(voice){
+
+speech.voice = voice;
+
+}
+
+currentSpeech = speech;
+
+window.speechSynthesis.speak(speech);
+
+}
+
+// ======================
+// PLAYLIST
+// ======================
+
+async function playAll(){
+
+isStopped = false;
+
+for(let i=0;i<words.length;i++){
+
+if(isStopped) return;
+
+speakChinese(words[i].zh);
+
+await wait(3200);
+
+if(isStopped) return;
+
+speakVietnamese(words[i].vi);
+
+await wait(2500);
+
+}
+
+if(repeatMode && !isStopped){
+
+playAll();
+
+}
+
+}
+
+function wait(ms){
+
+return new Promise(
+resolve=>setTimeout(resolve,ms)
+);
+
+}
+
+function stopAll(){
+
+isStopped = true;
+
+stopSpeech();
+
+}
+
+function toggleRepeat(){
+
+repeatMode = !repeatMode;
+
+alert(
+repeatMode
+? "Đã bật repeat"
+: "Đã tắt repeat"
+);
+
+}
+
+// ======================
+// DELETE
+// ======================
+
+function deleteWord(index){
+
+words.splice(index,1);
+
+saveWords();
+
+renderWords();
+
+}
+
+// ======================
+// ADD WORD
+// ======================
+
+async function addWord(){
+
+const input =
+document.getElementById("vnInput");
+
+const loading =
+document.getElementById("loading");
+
+const value =
+input.value.trim();
+
+if(!value) return;
+
+loading.innerText =
+"Đang dịch...";
+
+try{
+
+const url =
+`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=zh-CN&dt=t&q=${encodeURIComponent(value)}`;
+
+const response =
+await fetch(url);
+
+const data =
+await response.json();
+
+const chinese =
+data[0][0][0];
+
+const py =
+pinyinPro.pinyin(
+chinese,
+{
+toneType:'symbol'
+}
+);
+
+words.push({
+zh: chinese,
+py: py,
+vi: value
+});
+
+saveWords();
+
+renderWords();
+
+input.value = "";
+
+loading.innerText = "";
+
+}
+catch(error){
+
+loading.innerText = "";
+
+alert("Lỗi dịch");
+
+console.log(error);
+
+}
+
+}
+
+// ======================
+// INIT
+// ======================
+
+renderWords();
+
+</script>
+
+</body>
+</html>
