@@ -73,6 +73,11 @@ button{
     color:white;
 }
 
+.vocab-btn{
+    background:#2563eb;
+    color:white;
+}
+
 .controls{
     display:flex;
     gap:10px;
@@ -84,7 +89,8 @@ button{
     min-width:120px;
 }
 
-#playlist{
+#playlist,
+#vocabList{
     display:grid;
     grid-template-columns:1fr;
     gap:12px;
@@ -135,9 +141,14 @@ button{
     color:#fbbf24;
 }
 
+.hidden{
+    display:none;
+}
+
 @media (min-width:700px){
 
-#playlist{
+#playlist,
+#vocabList{
     grid-template-columns:1fr 1fr;
 }
 
@@ -150,7 +161,7 @@ button{
 
 <div class="container">
 
-<h1>🎧🎧🎧🎧 </h1>
+<h1>🎧🎧🎧🎧</h1>
 
 <div class="card">
 
@@ -206,7 +217,23 @@ onclick="stopAll()">
 ⏹ Stop
 </button>
 
+<button
+class="vocab-btn"
+onclick="toggleVocabulary()">
+📚 Từ vựng
+</button>
+
 </div>
+
+</div>
+
+<div
+class="card hidden"
+id="vocabSection">
+
+<h2>📚 Từ vựng đã lưu</h2>
+
+<div id="vocabList"></div>
 
 </div>
 
@@ -242,6 +269,28 @@ words = JSON.parse(saved);
 
 }
 
+function saveVocabulary(){
+
+localStorage.setItem(
+"vocabulary_words",
+JSON.stringify(vocabulary)
+);
+
+}
+
+function loadVocabulary(){
+
+const saved =
+localStorage.getItem("vocabulary_words");
+
+if(saved){
+
+vocabulary = JSON.parse(saved);
+
+}
+
+}
+
 // ======================
 // DATA
 // ======================
@@ -259,7 +308,10 @@ vi:"mạng"
 }
 ];
 
+let vocabulary = [];
+
 loadWords();
+loadVocabulary();
 
 let repeatMode = false;
 let isStopped = false;
@@ -315,7 +367,7 @@ keepScreenAwake();
 });
 
 // ======================
-// RENDER
+// RENDER PLAYLIST
 // ======================
 
 function renderWords(){
@@ -380,6 +432,88 @@ onclick="deleteWord(${index})">
 `;
 
 });
+
+}
+
+// ======================
+// RENDER VOCABULARY
+// ======================
+
+function renderVocabulary(){
+
+const vocabList =
+document.getElementById("vocabList");
+
+vocabList.innerHTML = "";
+
+if(vocabulary.length === 0){
+
+vocabList.innerHTML = `
+<p style="text-align:center;color:#9ca3af;">
+Chưa có từ vựng
+</p>
+`;
+
+return;
+
+}
+
+vocabulary.forEach((word,index)=>{
+
+vocabList.innerHTML += `
+
+<div class="word-item">
+
+<div style="flex:1; min-width:180px;">
+
+<h3>${word.zh}</h3>
+
+<p>${word.py}</p>
+
+<p>${word.vi}</p>
+
+</div>
+
+<div class="word-buttons">
+
+<button
+class="small-btn"
+onclick="speakChinese('${word.zh}')">
+🇨🇳
+</button>
+
+<button
+class="small-btn"
+onclick="speakVietnamese('${word.vi}')">
+🇻🇳
+</button>
+
+<button
+class="delete-btn"
+onclick="deleteVocabulary(${index})">
+🗑
+</button>
+
+</div>
+
+</div>
+
+`;
+
+});
+
+}
+
+// ======================
+// TOGGLE VOCABULARY
+// ======================
+
+function toggleVocabulary(){
+
+const section =
+document.getElementById("vocabSection");
+
+section.classList.toggle("hidden");
 
 }
 
@@ -554,6 +688,16 @@ renderWords();
 
 }
 
+function deleteVocabulary(index){
+
+vocabulary.splice(index,1);
+
+saveVocabulary();
+
+renderVocabulary();
+
+}
+
 // ======================
 // ADD WORD
 // ======================
@@ -596,15 +740,23 @@ toneType:'symbol'
 }
 );
 
-words.push({
+const newWord = {
 zh: chinese,
 py: py,
 vi: value
-});
+};
+
+words.push(newWord);
+
+vocabulary.push(newWord);
 
 saveWords();
 
+saveVocabulary();
+
 renderWords();
+
+renderVocabulary();
 
 input.value = "";
 
@@ -628,6 +780,8 @@ console.log(error);
 // ======================
 
 renderWords();
+
+renderVocabulary();
 
 </script>
 
